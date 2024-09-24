@@ -24,7 +24,7 @@ class PricingConfig(models.Model):
         return f'{self.day_of_week} - Base Price: {self.base_distance_price}'
     
 class PricingConfigLog(models.Model):
-    config = models.ForeignKey(PricingConfig, on_delete=models.SET_NULL)
+    config = models.ForeignKey(PricingConfig, on_delete=models.SET_NULL,null=True)
     modified_by = models.CharField(max_length=255)
     timestamp = models.DateTimeField(auto_now_add=True)
     action = models.CharField(max_length=255)
