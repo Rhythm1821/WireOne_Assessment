@@ -2,11 +2,14 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import PricingConfig
 from decimal import Decimal
-
-# Create your views here.
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import PricingConfig
+from .models import PricingConfig, PricingConfigLog
+from .forms import PricingConfigForm
+from django.shortcuts import render, redirect
+from django.contrib import messages
+
+# Create your views here.
 
 @api_view(['POST'])
 def calculate_price(request):
@@ -30,3 +33,18 @@ def calculate_price(request):
             (waiting_time * config.waiting_charge_per_minute)
     
     return Response({"price": price})
+def create_pricing_config(request):
+    if request.method == 'POST':
+        form = PricingConfigForm(request.POST)
+        if form.is_valid():
+            config=form.save()
+            PricingConfigLog.objects.create(
+                config=config,
+                modified_by=request.user.username,
+                action='Created'
+            )
+            messages.success(request, 'Data submitted successfully!')
+            return redirect('create_pricing_config')
+    else:
+        form = PricingConfigForm()
+    return render(request, 'create_pricing_config.html', {'form': form})
