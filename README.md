@@ -106,10 +106,16 @@ pip install -r requirements.txt
 ```bash
 python3 manage.py migrate
 ```
+### Create superuser:
+
+```bash
+python manage.py createsuperuser
+```
 
 ### Run the server:
 
 ```bash
 python manage.py runserver
-Access the application at http://127.0.0.1:8000/admin/
 ```
+
+### Access the application at http://127.0.0.1:8000/admin/
