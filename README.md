@@ -118,4 +118,14 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-### Access the application at http://127.0.0.1:8000/admin/
+### Access the application at 
+
+```http://127.0.0.1:8000/admin/```
+
+OR send data through the API:
+
+```http://127.0.0.1:8000/pricing/calculate_price/```
+
+OR send data through UI:
+
+```http://127.0.0.1:8000/pricing/```
