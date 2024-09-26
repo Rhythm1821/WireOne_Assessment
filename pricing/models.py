@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 # Create your models here.
 class PricingConfig(models.Model):
@@ -28,6 +30,33 @@ class PricingConfigLog(models.Model):
     modified_by = models.CharField(max_length=255)
     timestamp = models.DateTimeField(auto_now_add=True)
     action = models.CharField(max_length=255)
+    changes = models.TextField(max_length=255)
 
     def __str__(self):
         return f'{self.config} - {self.action} at {self.timestamp}'
+    
+@receiver(post_save, sender=PricingConfig)
+def log_pricing_config_changes(sender,instance, **kwargs):
+    if instance.pk:
+        action = "Updated"
+        old_instance = sender.objects.get(pk=instance.pk)
+        old_data = old_instance.__dict__.copy()
+        changes = {}
+        for field in instance._meta.fields:
+            field_name = field.name
+            old_value = old_data.get(field_name)
+            new_value = getattr(instance, field_name)
+
+            if old_value != new_value:
+                changes[field_name] = {'old_value': old_value, 'new_value': new_value}
+    else:
+        action = "Created"
+        changes = "Instance Created"
+    
+    modified_by = "System"
+    PricingConfigLog.objects.create(
+        config=instance,
+        modified_by=modified_by,
+        action=action,
+        changes=changes if changes else "Instance Created"
+    )

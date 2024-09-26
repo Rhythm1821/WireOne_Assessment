@@ -1,50 +1,67 @@
-from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import PricingConfig
 from decimal import Decimal
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
+from django.contrib import messages
+from django.views.generic.edit import CreateView
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.urls import reverse_lazy
+from rest_framework.views import APIView
+
 from .models import PricingConfig, PricingConfigLog
 from .forms import PricingConfigForm
-from django.shortcuts import render, redirect
-from django.contrib import messages
 
-# Create your views here.
+class CalculatePriceView(APIView):
+    def post(self, request):
+        # Getting data from the request
+        distance_traveled = Decimal(request.data.get('distance'))
+        ride_time = Decimal(request.data.get('time'))
+        waiting_time = Decimal(request.data.get('waiting_time'))
+        day_of_week = request.data.get('day_of_week')
+        
+        # Fetching the active pricing configuration for the given day
+        config = PricingConfig.objects.filter(day_of_week=day_of_week, enabled=True).first()
+        if not config:
+            return Response({"error": "Pricing configuration not found"}, status=404)
+        
+        # Calculating additional distance
+        additional_distance = max(0, distance_traveled - config.base_distance_limit)
+        
+        # Calculating the price
+        price = (config.base_distance_price + (additional_distance * config.additional_price_per_km)) + \
+                (ride_time * config.time_multiplier_factor) + \
+                (waiting_time * config.waiting_charge_per_minute)
+        
+        return Response({"price": price})
 
-@api_view(['POST'])
-def calculate_price(request):
-    # Getting data from the request
-    distance_traveled = Decimal(request.data.get('distance'))
-    ride_time = Decimal(request.data.get('time'))
-    waiting_time = Decimal(request.data.get('waiting_time'))
-    day_of_week = request.data.get('day_of_week')
-    
-    # Fetching the active pricing configuration for the given day
-    config = PricingConfig.objects.filter(day_of_week=day_of_week, enabled=True).first()
-    if not config:
-        return Response({"error": "Pricing configuration not found"}, status=404)
-    
-    # Calculating additional distance
-    additional_distance = max(0, distance_traveled - config.base_distance_limit)
-    
-    # Calculating the price
-    price = (config.base_distance_price + (additional_distance * config.additional_price_per_km)) + \
-            (ride_time * config.time_multiplier_factor) + \
-            (waiting_time * config.waiting_charge_per_minute)
-    
-    return Response({"price": price})
-def create_pricing_config(request):
-    if request.method == 'POST':
-        form = PricingConfigForm(request.POST)
-        if form.is_valid():
-            config=form.save()
-            PricingConfigLog.objects.create(
-                config=config,
-                modified_by=request.user.username,
-                action='Created'
-            )
-            messages.success(request, 'Data submitted successfully!')
-            return redirect('create_pricing_config')
-    else:
-        form = PricingConfigForm()
-    return render(request, 'create_pricing_config.html', {'form': form})
+
+
+
+
+class CreatePricingConfigView(LoginRequiredMixin, CreateView):
+    model = PricingConfig
+    form_class = PricingConfigForm
+    template_name = 'create_pricing_config.html'
+    success_url = reverse_lazy('create_pricing_config')
+
+    def form_valid(self, form):
+        config = form.save(commit=False)
+        changed_data = form.changed_data
+
+        for field_name in changed_data:
+            old_value = form.initial.get(field_name)
+            new_value = form.cleaned_data.get(field_name)
+
+            print(f'Field: {field_name}, Old Value: {old_value}, New Value: {new_value}')
+
+        # Save the PricingConfig instance to the database
+        config.save()
+
+        # After the config is saved, create the log entry
+        PricingConfigLog.objects.create(
+            config=config,
+            modified_by=self.request.user.username,
+            action='Created',
+            changes=f'Field: {field_name}, Old Value: {old_value}, New Value: {new_value}'
+        )
+
+        messages.success(self.request, 'Data submitted successfully!')
+        return super().form_valid(form)
