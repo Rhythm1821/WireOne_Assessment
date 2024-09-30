@@ -104,6 +104,7 @@ pip install -r requirements.txt
 ### Apply migrations:
 
 ```bash
+python3 manage.py makemigrations
 python3 manage.py migrate
 ```
 ### Create superuser:
