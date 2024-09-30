@@ -6,7 +6,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from rest_framework.views import APIView
 
-from .models import PricingConfig, PricingConfigLog
+from .models import PricingConfig
 from .forms import PricingConfigForm
 
 class CalculatePriceView(APIView):
@@ -44,24 +44,6 @@ class CreatePricingConfigView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         config = form.save(commit=False)
-        changed_data = form.changed_data
-
-        for field_name in changed_data:
-            old_value = form.initial.get(field_name)
-            new_value = form.cleaned_data.get(field_name)
-
-            print(f'Field: {field_name}, Old Value: {old_value}, New Value: {new_value}')
-
-        # Save the PricingConfig instance to the database
         config.save()
-
-        # After the config is saved, create the log entry
-        PricingConfigLog.objects.create(
-            config=config,
-            modified_by=self.request.user.username,
-            action='Created',
-            changes=f'Field: {field_name}, Old Value: {old_value}, New Value: {new_value}'
-        )
-
         messages.success(self.request, 'Data submitted successfully!')
         return super().form_valid(form)

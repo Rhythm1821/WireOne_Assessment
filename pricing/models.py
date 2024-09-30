@@ -32,11 +32,8 @@ class PricingConfigLog(models.Model):
     action = models.CharField(max_length=255)
     changes = models.TextField(max_length=255)
 
-    config_day_of_week = models.CharField(max_length=3, null=True, blank=True)
-    config_base_distance_price = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
-
     def __str__(self):
-        return f'{self.config_day_of_week} - {self.action} at {self.timestamp}'
+        return f'{self.config} - {self.action} at {self.timestamp}'
     
 @receiver(post_save, sender=PricingConfig)
 def log_pricing_config_changes(sender, instance, created, **kwargs):
@@ -58,25 +55,34 @@ def log_pricing_config_changes(sender, instance, created, **kwargs):
                     changes[field_name] = {'old_value': old_value, 'new_value': new_value}
 
     modified_by = "System"
+    if not changes:
+        return
     
     PricingConfigLog.objects.create(
         config=instance,
         modified_by=modified_by,
         action=action,
-        changes=changes if changes else "No Changes",
-        config_day_of_week=instance.day_of_week,
-        config_base_distance_price=instance.base_distance_price,
+        changes=changes,
     )
 
 @receiver(pre_delete, sender=PricingConfig)
 def log_pricing_config_delete(sender, instance, **kwargs):
-    modified_by = "System"  # Replace with actual user if available
+    modified_by = "System" 
 
     PricingConfigLog.objects.create(
         config=instance,
         modified_by=modified_by,
         action='Deleted',
         changes="Instance Deleted",
-        config_day_of_week=instance.day_of_week,
-        config_base_distance_price=instance.base_distance_price,
     )
+
+@receiver(pre_save, sender=PricingConfig)
+def track_changes_before_save(sender, instance, **kwargs):
+    if instance.pk:
+        try:
+            old_instance = sender.objects.get(pk=instance.pk)
+            instance._old_data = old_instance.__dict__.copy() 
+        except sender.DoesNotExist:
+            instance._old_data = None
+    else:
+        instance._old_data = None  
