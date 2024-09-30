@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save,pre_save,pre_delete
 from django.dispatch import receiver
 
 # Create your models here.
@@ -32,31 +32,51 @@ class PricingConfigLog(models.Model):
     action = models.CharField(max_length=255)
     changes = models.TextField(max_length=255)
 
+    config_day_of_week = models.CharField(max_length=3, null=True, blank=True)
+    config_base_distance_price = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+
     def __str__(self):
-        return f'{self.config} - {self.action} at {self.timestamp}'
+        return f'{self.config_day_of_week} - {self.action} at {self.timestamp}'
     
 @receiver(post_save, sender=PricingConfig)
-def log_pricing_config_changes(sender,instance, **kwargs):
-    if instance.pk:
-        action = "Updated"
-        old_instance = sender.objects.get(pk=instance.pk)
-        old_data = old_instance.__dict__.copy()
-        changes = {}
-        for field in instance._meta.fields:
-            field_name = field.name
-            old_value = old_data.get(field_name)
-            new_value = getattr(instance, field_name)
-
-            if old_value != new_value:
-                changes[field_name] = {'old_value': old_value, 'new_value': new_value}
-    else:
+def log_pricing_config_changes(sender, instance, created, **kwargs):
+    if created:
         action = "Created"
         changes = "Instance Created"
-    
+    else:
+        action = "Updated"
+        old_data = instance._old_data
+        changes = {}
+
+        if old_data:
+            for field in instance._meta.fields:
+                field_name = field.name
+                old_value = old_data.get(field_name)
+                new_value = getattr(instance, field_name)
+
+                if old_value != new_value:
+                    changes[field_name] = {'old_value': old_value, 'new_value': new_value}
+
     modified_by = "System"
+    
     PricingConfigLog.objects.create(
         config=instance,
         modified_by=modified_by,
         action=action,
-        changes=changes if changes else "Instance Created"
+        changes=changes if changes else "No Changes",
+        config_day_of_week=instance.day_of_week,
+        config_base_distance_price=instance.base_distance_price,
+    )
+
+@receiver(pre_delete, sender=PricingConfig)
+def log_pricing_config_delete(sender, instance, **kwargs):
+    modified_by = "System"  # Replace with actual user if available
+
+    PricingConfigLog.objects.create(
+        config=instance,
+        modified_by=modified_by,
+        action='Deleted',
+        changes="Instance Deleted",
+        config_day_of_week=instance.day_of_week,
+        config_base_distance_price=instance.base_distance_price,
     )
